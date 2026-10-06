@@ -1,9 +1,9 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { rename } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import { extname, join } from 'node:path';
+import { dirname, extname, join } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { FatalError, isPackaged, loadConfig, packagedAsset, salviaHome } from '@salvia/core';
 
@@ -50,10 +50,17 @@ export function ffmpegPath(): string {
     if (resolved) return resolved;
   } else {
     try {
-      const bundled = createRequire(import.meta.url)('ffmpeg-static') as string | null;
+      const req = createRequire(import.meta.url);
+      const bundled = req('ffmpeg-static') as string | null;
       if (bundled && existsSync(bundled)) return (resolved = bundled);
+      // Installed without its install script (bun runs untrusted ones only on request): fetch
+      // the binary the same way that script does, once.
+      if (bundled) {
+        execFileSync(process.execPath, [join(dirname(req.resolve('ffmpeg-static/package.json')), 'install.js')], { stdio: 'ignore', timeout: 300_000, windowsHide: true });
+        if (existsSync(bundled)) return (resolved = bundled);
+      }
     } catch {
-      // not installed
+      // not installed, or the download failed
     }
   }
   throw new FatalError('找不到随包的 ffmpeg，请重新安装 Salvia。');

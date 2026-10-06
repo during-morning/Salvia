@@ -1,9 +1,12 @@
-// Build the single-file executable: node scripts/build.mjs [--skip-web] [--no-exe]
+// Build the single-file executable: node scripts/build.mjs [--skip-web] [--no-exe | --npm]
 //
 //   1. vite build             packages/web → packages/web/dist
 //   2. esbuild                packages/cli/src/entry.ts → dist/app.mjs (everything bundled, ESM)
 //   3. Node SEA blob          scripts/sea-loader.cjs + assets (app.mjs, gzipped ffmpeg, web UI, book sources)
-//   4. postject               copy of node.exe + blob → dist/salvia(.exe)
+//   4. postject               copy of node(.exe) + blob → dist/salvia(.exe), ad-hoc signed on macOS
+//
+// --npm lays out the npm package instead: dist/npm (app.mjs, web UI, book sources; ffmpeg comes
+// from the ffmpeg-static dependency).
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
@@ -28,7 +31,7 @@ mkdirSync(dist, { recursive: true });
 
 if (!args.has('--skip-web')) {
   step('web: vite build');
-  run('npm run build -w @salvia/web', []);
+  run('npm', ['run', 'build', '-w', '@salvia/web']);
 }
 
 step('bundle: esbuild');
@@ -69,10 +72,44 @@ await esbuild.build({
       },
     },
   ],
-  banner: { js: "import { createRequire as __salviaCreateRequire } from 'node:module'; const require = __salviaCreateRequire(import.meta.url);" },
+  // The shebang makes app.mjs the npm package's `salvia` command.
+  banner: { js: "#!/usr/bin/env node\nimport { createRequire as __salviaCreateRequire } from 'node:module'; const require = __salviaCreateRequire(import.meta.url);" },
   logLevel: 'warning',
 });
 console.log(`  dist/app.mjs ${(statSync(join(dist, 'app.mjs')).size / 1e6).toFixed(1)} MB`);
+
+if (args.has('--npm')) {
+  step('npm package');
+  const pkgDir = join(dist, 'npm');
+  mkdirSync(pkgDir, { recursive: true });
+  copyFileSync(join(dist, 'app.mjs'), join(pkgDir, 'app.mjs'));
+  copyFileSync(join(dist, 'app.mjs.LEGAL.txt'), join(pkgDir, 'LEGAL.txt'));
+  cpSync(join(root, 'packages/web/dist'), join(pkgDir, 'web'), { recursive: true });
+  cpSync(join(root, 'sources'), join(pkgDir, 'sources'), { recursive: true });
+  cpSync(join(root, 'README.md'), join(pkgDir, 'README.md'));
+  const rootPkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  const ffmpegVersion = JSON.parse(readFileSync(join(root, 'node_modules/ffmpeg-static/package.json'), 'utf8')).version;
+  const pkg = {
+    name: 'salvia',
+    version: rootPkg.version,
+    description: rootPkg.description,
+    keywords: rootPkg.keywords,
+    homepage: rootPkg.homepage,
+    repository: rootPkg.repository,
+    bugs: rootPkg.bugs,
+    type: 'module',
+    bin: { salvia: 'app.mjs' },
+    files: ['app.mjs', 'web', 'sources', 'LEGAL.txt'],
+    // node:sqlite
+    engines: { node: '>=22.13' },
+    dependencies: { 'ffmpeg-static': `^${ffmpegVersion}` },
+    // Bun skips dependencies' install scripts unless trusted; ffmpeg-static's fetches the binary.
+    trustedDependencies: ['ffmpeg-static'],
+  };
+  writeFileSync(join(pkgDir, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`);
+  console.log(`  dist/npm (salvia@${pkg.version})`);
+  process.exit(0);
+}
 
 if (args.has('--no-exe')) {
   // Runnable as `node dist/app.mjs` (ffmpeg comes from the ffmpeg-static package then).
@@ -115,8 +152,13 @@ const exe = join(dist, exeName);
 copyFileSync(process.execPath, exe);
 const postject = join(root, 'node_modules/postject/dist/cli.js');
 const injectArgs = [postject, exe, 'NODE_SEA_BLOB', join(dist, 'sea-prep.blob'), '--sentinel-fuse', 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2'];
-if (process.platform === 'darwin') injectArgs.push('--macho-segment-name', 'NODE_SEA');
+// macOS refuses to run a modified signed binary: drop node's signature, sign ad hoc afterwards.
+if (process.platform === 'darwin') {
+  injectArgs.push('--macho-segment-name', 'NODE_SEA');
+  run('codesign', ['--remove-signature', exe]);
+}
 run(process.execPath, injectArgs, { shell: false });
+if (process.platform === 'darwin') run('codesign', ['--sign', '-', exe]);
 
 for (const f of ['sea-prep.blob', 'sea-config.json']) rmSync(join(dist, f), { force: true });
 rmSync(assetDir, { recursive: true, force: true });

@@ -1,5 +1,11 @@
 {
   "name": "salvia",
+  "version": "0.1.0",
+  "description": "一个输入框搞定视频、音乐、番剧、小说下载：终端界面 + 网页界面",
+  "keywords": ["downloader", "bilibili", "youtube", "music", "anime", "novel", "legado", "tui", "cli"],
+  "homepage": "https://github.com/during-morning/Salvia#readme",
+  "repository": { "type": "git", "url": "git+https://github.com/during-morning/Salvia.git" },
+  "bugs": { "url": "https://github.com/during-morning/Salvia/issues" },
   "private": true,
   "type": "module",
   "workspaces": [

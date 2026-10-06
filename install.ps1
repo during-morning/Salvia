@@ -10,8 +10,12 @@ $dir = Join-Path $env:LOCALAPPDATA 'Programs\Salvia'
 
 $version = $env:SALVIA_VERSION
 if (-not $version) {
-  $version = (Invoke-RestMethod "https://api.github.com/repos/$repo/releases/latest").tag_name -replace '^v', ''
+  # Where releases/latest redirects (.../releases/tag/v1.2.3); the REST API is rate-limited.
+  $res = Invoke-WebRequest "https://github.com/$repo/releases/latest" -UseBasicParsing -Method Head
+  $uri = if ($res.BaseResponse.ResponseUri) { $res.BaseResponse.ResponseUri } else { $res.BaseResponse.RequestMessage.RequestUri }
+  $version = ($uri.AbsoluteUri -split '/')[-1] -replace '^v', ''
 }
+if (-not $version -or $version -eq 'latest') { throw 'Salvia: could not find the latest release' }
 
 $name = "salvia-$version-windows-x64"
 $url = "https://github.com/$repo/releases/download/v$version/$name.zip"

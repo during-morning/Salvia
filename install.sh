@@ -25,7 +25,14 @@ fetch() {
 
 version="${SALVIA_VERSION:-}"
 if [ -z "$version" ]; then
-  version="$(fetch "https://api.github.com/repos/$REPO/releases/latest" | sed -n 's/.*"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -n 1)"
+  # Where releases/latest redirects (…/releases/tag/v1.2.3); the REST API is rate-limited.
+  latest="https://github.com/$REPO/releases/latest"
+  if command -v curl >/dev/null 2>&1; then
+    url="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$latest")"
+  else
+    url="$(wget -S --spider "$latest" 2>&1 | sed -n 's/^ *[Ll]ocation: *//p' | tail -n 1)"
+  fi
+  version="$(printf '%s' "$url" | sed -n 's#.*/tag/v\{0,1\}\([^/[:space:]]*\).*#\1#p')"
 fi
 [ -n "$version" ] || { echo "Salvia: could not find the latest release" >&2; exit 1; }
 

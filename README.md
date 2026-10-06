@@ -81,6 +81,8 @@ salvia @video 关键词 --json               # 输出 JSON
 salvia web                                # 只开网页版
 ```
 
+PowerShell 会把 `@xxx` 当成自己的语法，要加引号：`salvia '@music 晴天' --pick 1`。
+
 ### 数据位置
 
 设置、登录 Cookie、下载记录（SQLite）、导入的书源都在 `~/.salvia`（Windows：`%USERPROFILE%\.salvia`），可用环境变量 `SALVIA_HOME` 改到别处。卸载程序不会删除这个目录。

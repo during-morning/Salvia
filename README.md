@@ -85,7 +85,11 @@ bun add -g salvia
 @check [关键词]                             检查哪些书源能用
 ```
 
-想在几台电脑上用同一套书源：把书源 JSON 放到一个你能访问的链接（比如 GitHub 私密 Gist 的 Raw 链接，`https://gist.githubusercontent.com/<用户>/<id>/raw/<文件名>`，不带版本号就总是最新版），每台电脑 `@source add <链接>` 一次，以后改了书源就 `@source update`。书源里可以有可执行脚本，只导入你信任的来源。
+想在几台电脑上用同一套书源：把书源 JSON 放进一个 GitHub 仓库或 Gist，每台电脑 `@source add <链接>` 一次，以后改了书源推送上去，再 `@source update` 就同步了。`github.com/…/blob/…` 文件页面链接会自动换成 Raw 链接。
+
+私有仓库 / 私密 Gist 也可以：Salvia 读取 GitHub 链接时会带上你的 GitHub 登录——来自已登录的 GitHub CLI（`gh auth login`），或环境变量 `GH_TOKEN` / `GITHUB_TOKEN`。登录只发给 GitHub 本身，不会写进订阅链接。
+
+书源里可以有可执行脚本，只导入你信任的来源。
 
 ### 命令行脚本模式
 

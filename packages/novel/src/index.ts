@@ -1,7 +1,8 @@
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { getText, template, type Context, type Handler, type PickItem, type ModuleApi, type PreviewData, type SalviaModule } from '@salvia/core';
+import { HttpError, getText, template, type Context, type Handler, type PickItem, type ModuleApi, type PreviewData, type SalviaModule } from '@salvia/core';
 import { downloadBook, type BookFormat } from './download.ts';
+import { githubHeaders, githubToken, isGithub, rawGithubUrl } from './github.ts';
 import type { Book } from './flow.ts';
 import { bookInfo, content, search, toc } from './remote.ts';
 import {
@@ -269,9 +270,16 @@ export const novelHandler: Handler = {
 
 async function loadSourceText(spec: string): Promise<string> {
   try {
-    if (/^https?:\/\//i.test(spec)) return await getText(spec, { timeout: 30_000 });
+    if (/^https?:\/\//i.test(spec)) {
+      const url = rawGithubUrl(spec);
+      return await getText(url, { timeout: 30_000, headers: githubHeaders(url) });
+    }
     return await readFile(resolve(spec), 'utf8');
   } catch (err) {
+    // A private repo or gist looks like a missing file without the user's GitHub login.
+    if (err instanceof HttpError && err.status === 404 && isGithub(spec) && !githubToken()) {
+      throw new Error('读取书源失败：GitHub 返回 404。如果是私有仓库，先用 gh auth login 登录 GitHub CLI，或设置环境变量 GH_TOKEN。');
+    }
     throw new Error(`读取书源失败：${err instanceof Error ? err.message : String(err)}`);
   }
 }

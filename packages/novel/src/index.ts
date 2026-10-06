@@ -4,7 +4,18 @@ import { getText, template, type Context, type Handler, type PickItem, type Modu
 import { downloadBook, type BookFormat } from './download.ts';
 import type { Book } from './flow.ts';
 import { bookInfo, content, search, toc } from './remote.ts';
-import { allSources, importedSources, parseSources, removeImported, saveImported, type BookSource } from './source.ts';
+import {
+  allSources,
+  applySubscription,
+  importedSources,
+  parseSources,
+  removeImported,
+  removeSubscription,
+  saveImported,
+  subscriptions,
+  type BookSource,
+  type Subscription,
+} from './source.ts';
 
 export { search, bookInfo, toc, content, type Book, type Chapter } from './flow.ts';
 export { Analyzer } from './rule/analyze.ts';
@@ -265,6 +276,36 @@ async function loadSourceText(spec: string): Promise<string> {
   }
 }
 
+const isLink = (spec: string) => /^https?:\/\//i.test(spec);
+
+/** Read each subscription again: new sources come in, ones it no longer lists go. */
+async function updateSubscriptions(ctx: Context, subs: Subscription[]): Promise<void> {
+  if (!subs.length) return ctx.status('还没有订阅。用 @source add <书源链接> 导入并订阅。', 'error');
+  ctx.status(`更新 ${subs.length} 个订阅`);
+  let count = 0;
+  let removed = 0;
+  const failed: string[] = [];
+  for (const sub of subs) {
+    try {
+      const sources = parseSources(await loadSourceText(sub.url));
+      if (!sources.length) throw new Error('没有书源');
+      const r = applySubscription(sub.url, sources);
+      count += r.count;
+      removed += r.removed;
+    } catch {
+      failed.push(sub.url);
+    }
+    if (ctx.signal.aborted) return;
+  }
+  const done = subs.length - failed.length;
+  ctx.status(
+    [done ? `已更新 ${done} 个订阅，共 ${count} 个书源${removed ? `，移除 ${removed} 个已下架的` : ''}` : '', failed.length ? `${failed.length} 个订阅读取失败：${failed.join('、')}` : '']
+      .filter(Boolean)
+      .join('；'),
+    failed.length && !done ? 'error' : 'ok',
+  );
+}
+
 /** Source names for completion; reading the source files on every keystroke would be wasteful. */
 let names: { at: number; list: { name: string; group?: string; imported: boolean }[] } | undefined;
 function sourceNames() {
@@ -290,19 +331,23 @@ function registerNovel(api: ModuleApi): void {
 
   api.command({
     name: 'source',
-    usage: '@source [add <链接或文件> | rm <名称或网址>]（Legado 书源）',
+    usage: '@source [add <链接或文件> | update | rm <名称、网址或订阅链接>]（Legado 书源）',
     complete(args) {
       if (args.length === 1) {
         return [
-          { value: 'add', meta: '导入 Legado 书源（链接或本地 JSON 文件）' },
-          { value: 'rm', meta: '删除已导入的书源' },
+          { value: 'add', meta: '导入 Legado 书源（链接会被订阅，可用 update 更新；也可以是本地 JSON 文件）' },
+          { value: 'update', meta: `更新订阅的书源（${subscriptions().length} 个订阅）` },
+          { value: 'rm', meta: '删除已导入的书源或订阅' },
         ];
       }
       if (args[0] === 'add' && args.length === 2) return [{ value: '', meta: '输入书源链接，或本地 JSON 文件路径' }];
       if ((args[0] === 'rm' || args[0] === 'remove') && args.length >= 2) {
-        return sourceNames()
-          .filter((s) => s.imported)
-          .map((s) => ({ value: s.name, meta: s.group }));
+        return [
+          ...subscriptions().map((s) => ({ value: s.url, meta: `订阅 · ${s.sources.length} 个书源` })),
+          ...sourceNames()
+            .filter((s) => s.imported)
+            .map((s) => ({ value: s.name, meta: s.group })),
+        ];
       }
       return [];
     },
@@ -312,16 +357,33 @@ function registerNovel(api: ModuleApi): void {
         ctx.status('导入书源');
         const sources = parseSources(await loadSourceText(arg));
         if (!sources.length) return ctx.status('没有找到书源（需要 Legado 格式的 JSON）。', 'error');
-        saveImported(sources);
-        return ctx.status(`已导入 ${sources.length} 个书源。书源包含可执行脚本，请只导入你信任的来源。`, 'ok');
+        const trust = '书源包含可执行脚本，请只导入你信任的来源。';
+        if (!isLink(arg)) {
+          saveImported(sources);
+          return ctx.status(`已导入 ${sources.length} 个书源。${trust}`, 'ok');
+        }
+        applySubscription(arg, sources);
+        return ctx.status(`已导入 ${sources.length} 个书源，并订阅了这个链接（@source update 更新）。${trust}`, 'ok');
       }
+      if (action === 'update') return updateSubscriptions(ctx, subscriptions());
       if ((action === 'rm' || action === 'remove') && arg) {
+        const sub = removeSubscription(arg);
+        if (sub !== undefined) return ctx.status(`已取消订阅，删除了它的 ${sub} 个书源。`, 'ok');
         const n = removeImported((s) => s.bookSourceName === arg || s.bookSourceUrl === arg || s.bookSourceGroup === arg);
         return ctx.status(n ? `已删除 ${n} 个书源。` : '没有匹配的已导入书源。', n ? 'ok' : 'error');
       }
       const all = allSources();
-      ctx.status(`共 ${all.length} 个可用书源`, 'idle');
-      ctx.items(all.map((s) => ({ id: `src:${s.bookSourceUrl}`, title: s.bookSourceName, meta: s.bookSourceGroup ?? s.bookSourceUrl })));
+      const subs = subscriptions();
+      ctx.status(`共 ${all.length} 个可用书源${subs.length ? ` · ${subs.length} 个订阅（点开更新）` : ''}`, 'idle');
+      ctx.items([
+        ...subs.map((s) => ({
+          id: `sub:${s.url}`,
+          title: `订阅 · ${s.url}`,
+          meta: `${s.sources.length} 个书源 · ${new Date(s.updated).toLocaleDateString()} 更新`,
+          pick: () => updateSubscriptions(ctx, [s]),
+        })),
+        ...all.map((s) => ({ id: `src:${s.bookSourceUrl}`, title: s.bookSourceName, meta: s.bookSourceGroup ?? s.bookSourceUrl })),
+      ]);
     },
   });
 

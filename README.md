@@ -72,6 +72,21 @@ bun add -g salvia
 
 普通文字不会被猜测，会让你选择要搜的类型。
 
+### 书源
+
+小说搜索用 [Legado（阅读）](https://github.com/gedoor/legado) 格式的书源。Salvia 只内置公有领域书源（维基文库），其他书源自己导入：
+
+```
+@source add https://example.com/书源.json   导入并订阅这个链接
+@source add D:\书源.json                    从本地文件导入（不订阅）
+@source update                              重新读取所有订阅：新增的导入，下架的删除
+@source                                     查看书源和订阅（点订阅可单独更新）
+@source rm <书源名、网址或订阅链接>          删除书源，或取消订阅并删除它的书源
+@check [关键词]                             检查哪些书源能用
+```
+
+想在几台电脑上用同一套书源：把书源 JSON 放到一个你能访问的链接（比如 GitHub 私密 Gist 的 Raw 链接，`https://gist.githubusercontent.com/<用户>/<id>/raw/<文件名>`，不带版本号就总是最新版），每台电脑 `@source add <链接>` 一次，以后改了书源就 `@source update`。书源里可以有可执行脚本，只导入你信任的来源。
+
 ### 命令行脚本模式
 
 ```sh

@@ -144,6 +144,63 @@ export function removeImported(match: (s: BookSource) => boolean): number {
   return all.length - keep.length;
 }
 
+/** A link imported with `@source add`, read again by `@source update`. */
+export interface Subscription {
+  url: string;
+  /** bookSourceUrl of each source it gave last time. */
+  sources: string[];
+  updated: number;
+}
+
+function subscriptionFile(): string {
+  return join(salviaHome(), 'sources', 'subscriptions.json');
+}
+
+export function subscriptions(): Subscription[] {
+  try {
+    const list = JSON.parse(readFileSync(subscriptionFile(), 'utf8')) as unknown;
+    return Array.isArray(list) ? (list as Subscription[]).filter((s) => typeof s?.url === 'string' && Array.isArray(s.sources)) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveSubscriptions(list: Subscription[]): void {
+  const file = subscriptionFile();
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify(list, null, 2));
+}
+
+/** What other subscriptions still list (kept when one subscription drops a source). */
+const listedElsewhere = (subs: Subscription[], url: string) => new Set(subs.filter((s) => s.url !== url).flatMap((s) => s.sources));
+
+/**
+ * Take a subscription's current list: its sources are imported, and the ones it gave before but no
+ * longer lists are removed. Returns how many it has and how many were removed.
+ */
+export function applySubscription(url: string, sources: BookSource[]): { count: number; removed: number } {
+  const subs = subscriptions();
+  const now = new Set(sources.map((s) => s.bookSourceUrl));
+  const elsewhere = listedElsewhere(subs, url);
+  const gone = new Set((subs.find((s) => s.url === url)?.sources ?? []).filter((u) => !now.has(u) && !elsewhere.has(u)));
+  const removed = gone.size ? removeImported((s) => gone.has(s.bookSourceUrl)) : 0;
+  saveImported(sources);
+  saveSubscriptions([...subs.filter((s) => s.url !== url), { url, sources: [...now], updated: Date.now() }]);
+  return { count: now.size, removed };
+}
+
+/** Drop a subscription and the sources only it gave. Undefined when there is no such subscription. */
+export function removeSubscription(url: string): number | undefined {
+  const subs = subscriptions();
+  const sub = subs.find((s) => s.url === url);
+  if (!sub) return undefined;
+  const elsewhere = listedElsewhere(subs, url);
+  const drop = new Set(sub.sources.filter((u) => !elsewhere.has(u)));
+  const removed = removeImported((s) => drop.has(s.bookSourceUrl));
+  saveSubscriptions(subs.filter((s) => s.url !== url));
+  return removed;
+}
+
 /**
  * The source's `header` field: a JSON object (usual), a bare User-Agent string (old sources), or
  * `@js:` / `<js>` code that returns the JSON (evaluated by the caller-supplied runner).

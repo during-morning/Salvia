@@ -1,0 +1,20 @@
+# Dependencies and build output
+node_modules/
+dist/
+dist-*/
+*.tsbuildinfo
+
+# Local data (downloads, caches, databases, logins, editor/agent settings)
+cache/
+.salvia/
+*.db
+*.db-*
+*.part
+*.log
+.env
+.env.*
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

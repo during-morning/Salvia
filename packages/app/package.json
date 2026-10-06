@@ -1,0 +1,19 @@
+{
+  "name": "@salvia/app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@salvia/core": "*",
+    "@salvia/media": "*",
+    "@salvia/video": "*",
+    "@salvia/music": "*",
+    "@salvia/novel": "*",
+    "@salvia/platforms": "*",
+    "@salvia/server": "*",
+    "@salvia/anime": "*"
+  }
+}

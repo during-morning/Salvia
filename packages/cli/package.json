@@ -1,0 +1,21 @@
+{
+  "name": "@salvia/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "salvia": "./bin/salvia.mjs"
+  },
+  "dependencies": {
+    "@salvia/core": "*",
+    "@salvia/server": "*",
+    "ink": "^8.0.0",
+    "react": "^19.0.0",
+    "commander": "^15.0.0",
+    "string-width": "^8.0.0",
+    "tsx": "^4.23.0",
+    "@salvia/novel": "*",
+    "@salvia/app": "*",
+    "@xterm/headless": "^6.0.0"
+  }
+}

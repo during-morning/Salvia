@@ -1,0 +1,36 @@
+[
+  {
+    "bookSourceName": "维基文库（中文）",
+    "bookSourceUrl": "https://zh.wikisource.org",
+    "bookSourceGroup": "公有领域",
+    "bookSourceType": 0,
+    "enabled": true,
+    "bookSourceComment": "Wikisource 收录公有领域与自由授权的文献，可放心下载。",
+    "bookUrlPattern": "https://zh\\.wikisource\\.org/wiki/[^/]+$",
+    "header": "{\"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36\"}",
+    "searchUrl": "/w/api.php?action=query&list=search&srsearch={{key}}&srnamespace=0&srlimit=20&format=json&sroffset={{(page-1)*20}}",
+    "ruleSearch": {
+      "checkKeyWord": "紅樓夢",
+      "bookList": "$.query.search[*]",
+      "name": "$.title",
+      "intro": "$.snippet##<[^>]+>",
+      "wordCount": "$.wordcount",
+      "bookUrl": "/wiki/{{$.title}}"
+    },
+    "ruleBookInfo": {
+      "name": "@css:#firstHeading@text",
+      "author": "@css:a[href^=\"/wiki/Author:\"]@text",
+      "intro": "@css:.mw-parser-output > p@text##回目录.*",
+      "tocUrl": ""
+    },
+    "ruleToc": {
+      "chapterList": "@js:(function(){var m=String(baseUrl).match(/\\/wiki\\/([^?#]+)/);if(!m)return [];var prefix='/wiki/'+m[1]+'/';var re=/<a[^>]+href=\"([^\"]+)\"[^>]*>([\\s\\S]*?)<\\/a>/g;var out=[],seen={},x;while((x=re.exec(result))){var h=x[1];if(h.indexOf(prefix)===0&&h.indexOf('#')<0&&!seen[h]){seen[h]=1;out.push({name:x[2].replace(/<[^>]+>/g,'').replace(/\\s+/g,' '),url:'https://zh.wikisource.org'+h});}}return out;})()",
+      "chapterName": "$.name",
+      "chapterUrl": "$.url"
+    },
+    "ruleContent": {
+      "content": "@css:.mw-parser-output > p, .mw-parser-output > div.poem, .mw-parser-output > dl@html",
+      "replaceRegex": "##^.*(回目录|上一回|下一回|上一卷|下一卷|返回目錄).*$"
+    }
+  }
+]

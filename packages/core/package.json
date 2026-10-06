@@ -1,0 +1,12 @@
+{
+  "name": "@salvia/core",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "undici": "^8.0.0"
+  }
+}

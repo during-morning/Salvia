@@ -1,0 +1,17 @@
+{
+  "name": "@salvia/platforms",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@salvia/core": "*",
+    "@salvia/media": "*",
+    "@salvia/video": "*",
+    "@salvia/music": "*",
+    "@salvia/anime": "*",
+    "webtorrent": "^3.0.21"
+  }
+}
